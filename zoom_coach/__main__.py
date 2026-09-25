@@ -33,9 +33,14 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--file", help="Transcript file (or glob, newest match is followed) for --source file/replay")
     src.add_argument("--skip-existing", action="store_true", help="With --source file, ignore what is already in the file")
     src.add_argument("--replay-speed", type=float, default=1.0, help="Replay speed multiplier (default 1.0)")
-    src.add_argument("--device", help="Audio input device name or index for --source audio")
-    src.add_argument("--whisper-model", default="small.en", help="faster-whisper model size (default small.en)")
-    src.add_argument("--audio-speaker", help="Speaker label for transcribed audio (default: none)")
+    src.add_argument("--mic", help="Your microphone (name or index); lines are labelled with --me. "
+                     "Use 'default' for the system default microphone")
+    src.add_argument("--call-audio", help="Device carrying the call's sound, e.g. 'CABLE Output' or 'Stereo Mix'; "
+                     "lines are labelled 'Other side'")
+    src.add_argument("--device", help="A single audio device to transcribe without speaker labels")
+    src.add_argument("--whisper-model", default="small.en",
+                     help="faster-whisper model: tiny.en, base.en, small.en (default), medium.en")
+    src.add_argument("--whisper-device", default="cpu", help="cpu (default) or cuda for an NVIDIA GPU")
     src.add_argument("--list-devices", action="store_true", help="List audio devices and exit")
 
     call = p.add_argument_group("call")
@@ -88,7 +93,16 @@ def build_sources(args: argparse.Namespace) -> list:
     if args.source == "audio":
         from .sources.audio import AudioSource
 
-        return [AudioSource(device=args.device, model_size=args.whisper_model, speaker_label=args.audio_speaker)]
+        common = dict(model_size=args.whisper_model, whisper_device=args.whisper_device)
+        sources = []
+        if args.mic:
+            mic = None if args.mic.lower() == "default" else args.mic
+            sources.append(AudioSource(device=mic, speaker_label=args.me or "Me", **common))
+        if args.call_audio:
+            sources.append(AudioSource(device=args.call_audio, speaker_label="Other side", **common))
+        if args.device or not sources:
+            sources.append(AudioSource(device=args.device, **common))
+        return sources
     return []
 
 
@@ -113,7 +127,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         coach = Coach(
             load_context(args.context),
-            me=args.me,
+            me=args.me or ("Me" if args.source == "audio" and args.mic else None),
             backend=args.backend,
             model=args.model,
             effort=args.effort,

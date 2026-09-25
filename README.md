@@ -71,20 +71,33 @@ Pick whichever works for your setup:
 
 ```bash
 pip install -e ".[audio]"
-zoom-coach --list-devices                 # find your device
-zoom-coach --source audio --device "BlackHole 2ch" --context context/ --goal "..." --open
+zoom-coach --list-devices                 # find your devices
+zoom-coach --backend claude-code --source audio --mic default --call-audio "CABLE Output" \
+  --me Robert --context context/ --goal "..." --open
 ```
 
-The coach needs to hear **both sides** of the call, not just your microphone:
+- `--mic` is your microphone (`default` = the system default). Its lines are labelled with `--me`.
+- `--call-audio` is a device carrying the call's sound. Its lines are labelled "Other side".
+  Listening to both separately tells the coach who said what.
+- `--device` listens to a single device with no speaker labels (e.g. a device that already mixes both).
 
+Device names can be partial and aren't case-sensitive. **Wear headphones** so your
+microphone doesn't also pick up the other side.
+
+Getting the call's sound onto an input device:
+
+- **Windows:** install [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) (free, reboot after).
+  In Zoom → Settings → Audio, set **Speaker** to "CABLE Input". To still hear the call, open
+  Windows Sound settings → More sound settings → Recording → "CABLE Output" → Properties →
+  Listen → tick "Listen to this device" and choose your headphones. Then use
+  `--call-audio "CABLE Output"`.
 - **macOS:** install [BlackHole](https://existential.audio/blackhole/). In Audio MIDI Setup,
-  create a Multi-Output Device (your speakers + BlackHole) and pick it as Zoom's speaker. For
-  your own voice as well, create an Aggregate Device (BlackHole + mic) and use that as `--device`.
-- **Windows:** enable "Stereo Mix", or install VB-Audio Cable, and use it as `--device`.
+  create a Multi-Output Device (your headphones + BlackHole) and pick it as Zoom's speaker,
+  then use `--call-audio "BlackHole"`.
 - **Linux:** use the PulseAudio/PipeWire monitor source of your output device.
 
-Whisper can't tell speakers apart, so the coach works out who is talking from context.
-`--whisper-model base.en` is faster; `medium.en` is more accurate.
+`--whisper-model base.en` is faster; `medium.en` is more accurate. With an NVIDIA GPU and
+CUDA installed, `--whisper-device cuda` speeds up transcription.
 
 ### Transcript file
 
