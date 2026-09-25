@@ -9,6 +9,7 @@
   // ── Small helpers ─────────────────────────────────────────
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const pad = (n) => String(n).padStart(2, "0");
 
   function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -47,18 +48,11 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
 
   function palette() {
     const cs = getComputedStyle(document.documentElement);
     const v = (n) => cs.getPropertyValue(n).trim();
-    return {
-      paper: v("--paper-2"),
-      ink: v("--ink"),
-      colors: [v("--wine"), v("--ochre"), v("--sage"), v("--indigo"), v("--rose")],
-      // overlapping shapes darken on paper, glow in the dark
-      blend: `mix-blend-mode:${cs.colorScheme.includes("dark") ? "screen" : "multiply"}`,
-    };
+    return { paper: v("--paper"), ink: v("--ink"), signal: v("--signal"), grey: v("--grey") };
   }
 
   // ── Local additions (browser storage) ─────────────────────
@@ -84,7 +78,8 @@
     ...local[kind].map((x) => ({ ...x, _local: true })),
   ];
 
-  // ── Generative art ────────────────────────────────────────
+  // ── Generative artwork ────────────────────────────────────
+  // Hard-edged, three colours only: ink, paper, signal red.
   const SVG_NS = "http://www.w3.org/2000/svg";
   function svg(tag, attrs = {}) {
     const n = document.createElementNS(SVG_NS, tag);
@@ -92,113 +87,185 @@
     return n;
   }
 
-  // Each artist gets a small abstract composition seeded by their name.
-  function artistArt(seed) {
+  let clipIds = 0;
+  function artwork(seed, label = "") {
     const r = rng(seed);
     const P = palette();
     const W = 400, H = 500;
-    const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "art", role: "img", "aria-hidden": "true" });
-    root.append(svg("rect", { width: W, height: H, fill: P.paper }));
-    const cols = [...P.colors].sort(() => r() - 0.5);
-    const style = Math.floor(r() * 4);
+    const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, "aria-hidden": "true" });
+    const clip = `art${++clipIds}`;
+    const defs = svg("defs");
+    const cp = svg("clipPath", { id: clip });
+    cp.append(svg("rect", { width: W, height: H }));
+    defs.append(cp);
+    root.append(defs);
+    const g = svg("g", { "clip-path": `url(#${clip})` });
+    root.append(g);
+    const style = hash(String(seed)) % 4;
 
     if (style === 0) {
-      // stacked colour fields (Rothko-ish)
-      const n = 2 + Math.floor(r() * 2);
-      let y = 40;
-      const gap = 18, h = (H - 80 - gap * (n - 1)) / n;
-      for (let i = 0; i < n; i++) {
-        root.append(svg("rect", {
-          x: 36 + r() * 6, y: y + r() * 4, width: W - 72 - r() * 8, height: h,
-          fill: cols[i % cols.length], opacity: 0.78 + r() * 0.2, rx: 6,
-        }));
-        y += h + gap;
-      }
+      // halftone field swelling toward a focal point, over a red disc
+      g.append(svg("rect", { width: W, height: H, fill: P.paper }));
+      const fx = W * (0.2 + r() * 0.6), fy = H * (0.2 + r() * 0.6);
+      g.append(svg("circle", { cx: W - fx, cy: H - fy, r: 110 + r() * 60, fill: P.signal }));
+      const step = 13 + Math.floor(r() * 6);
+      const reach = 260 + r() * 140;
+      for (let y = step / 2; y < H; y += step)
+        for (let x = step / 2; x < W; x += step) {
+          const d = Math.hypot(x - fx, y - fy);
+          const rad = Math.max(0, 1 - d / reach) * step * 0.62;
+          if (rad > 0.6) g.append(svg("circle", { cx: x, cy: y, r: rad.toFixed(2), fill: P.ink }));
+        }
     } else if (style === 1) {
-      // overlapping circles
-      for (let i = 0; i < 4 + Math.floor(r() * 3); i++) {
-        root.append(svg("circle", {
-          cx: 60 + r() * (W - 120), cy: 60 + r() * (H - 120), r: 50 + r() * 110,
-          fill: pick(r, cols), opacity: 0.55 + r() * 0.3,
-          style: P.blend,
-        }));
+      // vertical bars, a cut-out circle
+      g.append(svg("rect", { width: W, height: H, fill: P.paper }));
+      let x = 0;
+      while (x < W) {
+        const w = 6 + Math.floor(r() * 48);
+        const t = r();
+        const fill = t < 0.5 ? P.ink : t < 0.68 ? P.signal : P.paper;
+        g.append(svg("rect", { x, y: 0, width: w, height: H, fill }));
+        x += w;
       }
+      g.append(svg("circle", { cx: W * (0.3 + r() * 0.4), cy: H * (0.3 + r() * 0.4), r: 70 + r() * 60, fill: P.paper }));
+      g.append(svg("rect", { x: 0, y: H * (0.7 + r() * 0.15), width: W, height: 3, fill: P.signal }));
     } else if (style === 2) {
-      // fine grid with a few filled cells (Martin-ish)
-      const step = 20 + Math.floor(r() * 16);
-      for (let x = step; x < W; x += step)
-        root.append(svg("line", { x1: x, y1: 0, x2: x, y2: H, stroke: P.ink, "stroke-opacity": 0.14 }));
-      for (let y = step; y < H; y += step)
-        root.append(svg("line", { x1: 0, y1: y, x2: W, y2: y, stroke: P.ink, "stroke-opacity": 0.14 }));
-      for (let i = 0; i < 6 + Math.floor(r() * 6); i++) {
-        root.append(svg("rect", {
-          x: Math.floor(r() * (W / step)) * step, y: Math.floor(r() * (H / step)) * step,
-          width: step * (1 + Math.floor(r() * 3)), height: step,
-          fill: pick(r, cols), opacity: 0.7,
-        }));
-      }
+      // a giant cropped initial
+      const bg = r() < 0.5 ? P.signal : P.ink;
+      g.append(svg("rect", { width: W, height: H, fill: bg }));
+      for (let i = 1; i < 5; i++)
+        g.append(svg("line", { x1: 0, y1: (H / 5) * i, x2: W, y2: (H / 5) * i, stroke: P.paper, "stroke-opacity": 0.25 }));
+      const t = svg("text", {
+        x: -30 - r() * 60,
+        y: H + 40 + r() * 60,
+        fill: P.paper,
+        "font-family": "Archivo, Helvetica, Arial, sans-serif",
+        "font-weight": 900,
+        "font-size": 620,
+        style: "font-stretch:62%",
+      });
+      t.textContent = String(label || seed).trim().charAt(0).toUpperCase() || "✺";
+      g.append(t);
+      g.append(svg("circle", { cx: W * (0.55 + r() * 0.3), cy: H * (0.15 + r() * 0.2), r: 22 + r() * 18, fill: bg === P.ink ? P.signal : P.ink }));
     } else {
-      // arcs and a horizon
-      const cy = H * (0.45 + r() * 0.2);
-      root.append(svg("rect", { x: 0, y: cy, width: W, height: H - cy, fill: cols[0], opacity: 0.85 }));
-      root.append(svg("circle", { cx: W * (0.3 + r() * 0.4), cy, r: 60 + r() * 70, fill: cols[1] }));
-      for (let i = 0; i < 5; i++) {
-        root.append(svg("path", {
-          d: `M ${-20} ${cy - 30 - i * 26} Q ${W / 2} ${cy - 120 - i * 40 - r() * 40} ${W + 20} ${cy - 30 - i * 26}`,
-          fill: "none", stroke: P.ink, "stroke-opacity": 0.35, "stroke-width": 1.2,
+      // a disc cut into shifted slices
+      g.append(svg("rect", { width: W, height: H, fill: P.paper }));
+      const cx = W / 2, cy = H / 2, R = 150 + r() * 30;
+      const n = 7 + Math.floor(r() * 8);
+      const hot = Math.floor(r() * n);
+      for (let i = 0; i < n; i++) {
+        const y0 = cy - R + (2 * R * i) / n;
+        const h = (2 * R) / n;
+        const sc = svg("clipPath", { id: `${clip}s${i}` });
+        sc.append(svg("rect", { x: 0, y: y0, width: W, height: h - 2 }));
+        defs.append(sc);
+        g.append(svg("circle", {
+          cx: cx + (r() - 0.5) * 90, cy, r: R,
+          fill: i === hot ? P.signal : P.ink,
+          "clip-path": `url(#${clip}s${i})`,
         }));
       }
+      g.append(svg("line", { x1: 24, y1: 24, x2: W - 24, y2: 24, stroke: P.ink }));
     }
-    // a signature stroke
-    root.append(svg("path", {
-      d: `M ${W - 110} ${H - 36} c 14 -12 26 6 40 -4 s 24 -8 36 2`,
-      fill: "none", stroke: P.ink, "stroke-opacity": 0.5, "stroke-width": 1.5, "stroke-linecap": "round",
-    }));
     return root;
   }
 
-  // A wine-glass ring stain for each winemaker's label.
-  function stain(seed) {
-    const r = rng(seed + "stain");
-    const P = palette();
-    const root = svg("svg", { viewBox: "0 0 120 120", class: "stain", "aria-hidden": "true" });
-    const c = P.colors[0];
-    root.append(svg("circle", { cx: 60, cy: 60, r: 44, fill: "none", stroke: c, "stroke-width": 5 + r() * 3, opacity: 0.35 }));
-    root.append(svg("circle", { cx: 60 + r() * 4, cy: 60 + r() * 4, r: 41, fill: "none", stroke: c, "stroke-width": 1.5, opacity: 0.5, "stroke-dasharray": `${60 + r() * 80} ${10 + r() * 30}` }));
-    root.append(svg("circle", { cx: 60, cy: 60, r: 44, fill: c, opacity: 0.06 }));
-    return root;
+  // ── Fit text to container width (magazine-style wordmarks) ─
+  function fit(container) {
+    const width = container.clientWidth;
+    $$(".fit", container).forEach((span) => {
+      span.style.fontSize = "100px";
+      const w = span.getBoundingClientRect().width;
+      if (w) span.style.fontSize = `${Math.floor(((100 * width) / w) * 0.995)}px`;
+    });
+  }
+  function fitAll() {
+    fit($("#wordmark"));
+    fit($("#colophon-mark"));
   }
 
-  // Hero composition — click to redraw.
-  let heroSeed = hash(SITE.owner || "cabinet");
-  function drawHero() {
-    const host = $("#hero-art");
-    if (!host) return;
-    const r = rng(heroSeed);
-    const P = palette();
-    const S = 500;
-    const root = svg("svg", { viewBox: `0 0 ${S} ${S}`, width: "100%", height: "100%" });
-    const cols = [...P.colors].sort(() => r() - 0.5);
-
-    root.append(svg("circle", { cx: S / 2, cy: S / 2, r: 210, fill: cols[0], opacity: 0.9 }));
-    root.append(svg("rect", { x: 70 + r() * 60, y: 250 + r() * 40, width: 300, height: 160, fill: cols[1], opacity: 0.85, style: P.blend }));
-    root.append(svg("circle", { cx: 150 + r() * 200, cy: 120 + r() * 80, r: 50 + r() * 30, fill: cols[2], style: P.blend }));
-    for (let i = 0; i < 9; i++) {
-      const y = 80 + i * 40;
-      root.append(svg("line", { x1: 40, y1: y, x2: 40 + 120 + r() * 300, y2: y, stroke: P.ink, "stroke-opacity": 0.35, "stroke-width": 1 }));
-    }
-    root.append(svg("circle", { cx: S / 2, cy: S / 2, r: 238, fill: "none", stroke: P.ink, "stroke-opacity": 0.4, "stroke-width": 1 }));
-    host.replaceChildren(root);
+  // ── Cover ─────────────────────────────────────────────────
+  function season(d) {
+    const m = d.getMonth();
+    return m < 2 || m === 11 ? "Winter" : m < 5 ? "Spring" : m < 8 ? "Summer" : "Autumn";
   }
 
-  // ── Renderers ─────────────────────────────────────────────
+  function renderCover() {
+    const owner = SITE.owner || "";
+    const title = SITE.title || "Cabinet of Inspiration";
+    const words = title.split(/\s+/);
+    const last = words.length > 1 ? words.pop() : null;
+    const line = (text, cls = "") => el("span", { class: `line ${cls}` }, el("span", { class: "fit", text }));
+    $("#wordmark").replaceChildren(line(words.join(" ")), last ? line(last, "serif") : null);
+
+    const now = new Date();
+    $("#issue").textContent = `Issue ${pad(1)} — ${season(now)} ${now.getFullYear()}`;
+    $("#kept-by").textContent = owner ? `Kept by ${owner}` : "";
+    $("#intro").textContent = SITE.intro || "";
+    $("#brand").replaceChildren(owner || title, owner ? el("span", { class: "bar-title", text: ` / ${title}` }) : null);
+    $("#footer-owner").textContent = owner || "—";
+    $("#colophon-mark").replaceChildren(el("span", { class: "fit", text: owner || title }));
+    $("#cover-year").textContent = now.getFullYear();
+    document.title = owner ? `${title} — ${owner}` : title;
+  }
+
+  let coverSeed = SITE.owner || "cabinet";
+  let studyNo = 1;
+  function drawCover() {
+    $("#cover-art").replaceChildren(artwork(String(coverSeed), SITE.owner));
+    $("#cover-caption").textContent = `Untitled (study no. ${studyNo})`;
+  }
+
+  function renderCounts() {
+    $$("[data-count]").forEach((n) => (n.textContent = pad(allOf(n.dataset.count).length)));
+    const c = (k) => allOf(k).length;
+    $("#counts").textContent = `${c("artists")} artists / ${c("winemakers")} winemakers / ${c("quotes")} quotes`;
+  }
+
+  function renderTicker() {
+    const qs = allOf("quotes");
+    const host = $("#ticker");
+    host.parentElement.hidden = !qs.length;
+    if (!qs.length) return;
+    const items = qs.map((q) => `${q.text} — ${q.author || "unknown"}`);
+    const spans = () => items.map((t) => el("span", { text: t }));
+    host.replaceChildren(...spans(), ...spans()); // doubled for a seamless loop
+    const chars = items.join("").length;
+    host.style.setProperty("--tick-dur", `${Math.max(30, chars * 0.18)}s`);
+  }
+
+  // ── Filters ───────────────────────────────────────────────
+  const filters = { artists: null, winemakers: null };
+
+  function renderFilters(kind) {
+    const host = $(`[data-chips="${kind}"]`);
+    const tags = [...new Set(allOf(kind).flatMap((x) => x.tags || []))].sort();
+    if (!tags.length) return host.replaceChildren();
+    const btn = (label, value) =>
+      el("button", {
+        "aria-pressed": String(filters[kind] === value),
+        text: label,
+        onclick: () => {
+          filters[kind] = filters[kind] === value ? null : value;
+          renderList(kind);
+          renderFilters(kind);
+        },
+      });
+    host.replaceChildren(btn("All", null), ...tags.map((t) => btn(t, t)));
+  }
+
+  const filtered = (kind) => {
+    const f = filters[kind];
+    return allOf(kind).filter((x) => !f || (x.tags || []).includes(f));
+  };
+
   function removeButton(kind, item) {
     if (!item._local) return null;
     return el("button", {
       class: "remove",
-      text: "remove",
-      title: "Remove this browser-only entry",
-      onclick: () => {
+      text: "Remove draft",
+      onclick: (e) => {
+        e.stopPropagation();
         local[kind] = local[kind].filter((x) => x.id !== item.id);
         saveLocal(local);
         renderAll();
@@ -206,159 +273,165 @@
     });
   }
 
-  function linkFor(item, label = "visit ↗") {
-    const u = safeUrl(item.link);
-    return u ? el("a", { href: u, target: "_blank", rel: "noopener", text: label }) : null;
+  // ── Artists: index with hover preview ─────────────────────
+  const peek = $("#peek");
+  let peekX = 0, peekY = 0, curX = 0, curY = 0, peekRaf = 0;
+  function peekLoop() {
+    curX += (peekX - curX) * 0.18;
+    curY += (peekY - curY) * 0.18;
+    peek.style.left = `${curX + 140}px`;
+    peek.style.top = `${curY}px`;
+    peekRaf = peek.classList.contains("show") ? requestAnimationFrame(peekLoop) : 0;
   }
-
-  const filters = { artists: null, winemakers: null };
-
-  function renderChips(kind) {
-    const host = $(`[data-chips="${kind}"]`);
-    const tags = [...new Set(allOf(kind).flatMap((x) => x.tags || []))].sort();
-    if (!tags.length) return host.replaceChildren();
-    const chip = (label, value) =>
-      el("button", {
-        class: "chip",
-        "aria-pressed": String(filters[kind] === value),
-        text: label,
-        onclick: () => {
-          filters[kind] = filters[kind] === value ? null : value;
-          renderList(kind);
-          renderChips(kind);
-        },
-      });
-    host.replaceChildren(chip("all", null), ...tags.map((t) => chip(t, t)));
+  function showPeek(a, e) {
+    peek.replaceChildren(artwork(a.name, a.name));
+    peekX = curX = e.clientX;
+    peekY = curY = e.clientY;
+    peek.classList.add("show");
+    if (!peekRaf) peekRaf = requestAnimationFrame(peekLoop);
   }
+  document.addEventListener("mousemove", (e) => { peekX = e.clientX; peekY = e.clientY; });
 
-  function filtered(kind) {
-    const f = filters[kind];
-    return allOf(kind).filter((x) => !f || (x.tags || []).includes(f));
-  }
-
-  function artistCard(a) {
-    return el("article", { class: "artist reveal" },
-      artistArt(a.name),
-      el("div", { class: "body" },
-        el("h3", { text: a.name }),
-        el("div", { class: "meta", text: [a.medium, a.era].filter(Boolean).join(" · ") }),
-        a.why && el("p", { class: "why", text: a.why }),
-        el("div", { class: "card-foot" },
-          linkFor(a),
-          a._local && el("span", { class: "local-badge", text: "● draft" }),
+  function artistRow(a, i) {
+    const row = el("li", { class: "row reveal" });
+    const main = el("button", {
+      class: "row-main",
+      "aria-expanded": "false",
+      onclick: () => {
+        const open = row.classList.toggle("open");
+        main.setAttribute("aria-expanded", String(open));
+        peek.classList.remove("show");
+      },
+      onmouseenter: (e) => !row.classList.contains("open") && showPeek(a, e),
+      onmouseleave: () => peek.classList.remove("show"),
+    },
+      el("span", { class: "no", text: pad(i + 1) }),
+      el("span", { class: "name" }, a.name, a._local && el("span", { class: "draft", text: "draft" })),
+      el("span", { class: "cell medium", text: a.medium || "—" }),
+      el("span", { class: "cell years", text: a.era || "—" }),
+      el("span", { class: "cell tags", text: (a.tags || []).join(", ") || "—" }),
+      el("span", { class: "arrow", "aria-hidden": "true", text: "+" }),
+    );
+    const link = safeUrl(a.link);
+    const detail = el("div", { class: "row-detail" },
+      el("span", { class: "spacer" }),
+      el("div", { class: "art-frame" }, artwork(a.name, a.name)),
+      el("div", {},
+        el("p", { class: "why", text: a.why || "…" }),
+        el("div", { class: "cap", text: [a.name, a.medium, a.era].filter(Boolean).join(", ") }),
+        el("div", { class: "detail-links" },
+          link && el("a", { href: link, target: "_blank", rel: "noopener", text: "See the work ↗" }),
           removeButton("artists", a),
         ),
       ),
     );
+    row.append(main, detail);
+    return row;
   }
 
-  function winemakerCard(w) {
-    const dl = el("dl");
-    if (w.grapes) dl.append(el("dt", { text: "Grapes" }), el("dd", { text: w.grapes }));
-    if (w.favorite) dl.append(el("dt", { text: "The bottle" }), el("dd", { text: w.favorite }));
-    return el("article", { class: "label reveal" },
-      stain(w.name),
-      el("div", { class: "estate", text: w.estate && w.estate !== w.name ? w.estate : "Vigneron" }),
+  // ── Winemakers ────────────────────────────────────────────
+  function bottleCard(w, i) {
+    const place = (w.region || w.country || "—").split(",")[0].trim();
+    const spec = el("dl", { class: "spec" });
+    const add = (k, v) => v && spec.append(el("dt", { text: k }), el("dd", { text: v }));
+    if (w.estate && w.estate !== w.name) add("Estate", w.estate);
+    add("Region", [w.region, w.country].filter(Boolean).join(", "));
+    add("Grapes", w.grapes);
+    add("The bottle", w.favorite);
+    const link = safeUrl(w.link);
+    return el("article", { class: "bottle reveal" },
+      el("div", { class: "bottle-top label" },
+        el("span", { text: `No. ${pad(i + 1)}` }),
+        el("span", { text: w.country || "" }),
+      ),
+      el("div", { class: "place", text: place }),
       el("h3", { text: w.name }),
-      el("div", { class: "region", text: [w.region, w.country].filter(Boolean).join(", ") }),
-      el("div", { class: "rule" }),
-      dl.children.length ? dl : null,
+      spec,
       w.why && el("p", { class: "why", text: w.why }),
-      el("div", { class: "card-foot" },
-        linkFor(w, "estate ↗"),
-        w._local && el("span", { class: "local-badge", text: "● draft" }),
+      el("div", { class: "foot" },
+        link && el("a", { href: link, target: "_blank", rel: "noopener", text: "Estate ↗" }),
+        w._local && el("span", { class: "draft-tag", text: "draft" }),
         removeButton("winemakers", w),
       ),
     );
   }
 
-  function quoteCard(q) {
-    const len = (q.text || "").length;
-    const size = len < 50 ? "l" : len < 110 ? "m" : "s";
-    const accent = pick(rng(q.text), palette().colors);
-    return el("figure", { class: `quote ${size} reveal`, style: `--accent:${accent}` },
-      el("span", { class: "mark", "aria-hidden": "true", text: "“" }),
-      el("blockquote", { text: q.text }),
-      el("figcaption", {},
-        q.author ? `— ${q.author}` : "— unknown",
-        q.source && el("cite", { text: q.source }),
-        removeButton("quotes", q),
+  // ── Words ─────────────────────────────────────────────────
+  let current = 0;
+  function showQuote(i, animate = true) {
+    const qs = allOf("quotes");
+    const stage = $("#stage");
+    if (!qs.length) { stage.hidden = true; return; }
+    stage.hidden = false;
+    current = (i + qs.length) % qs.length;
+    const q = qs[current];
+    const paint = () => {
+      $("#stage-text").textContent = q.text;
+      $("#stage-author").textContent = [q.author || "Unknown", q.source].filter(Boolean).join(" — ");
+      $("#stage-count").textContent = `${pad(current + 1)} / ${pad(qs.length)}`;
+      stage.classList.remove("swap");
+      $$(".quote-list li").forEach((li, n) => li.classList.toggle("on", n === current));
+    };
+    if (!animate) return paint();
+    stage.classList.add("swap");
+    setTimeout(paint, 250);
+  }
+
+  function quoteItem(q, i) {
+    return el("li", { class: "reveal" },
+      el("button", {
+        onclick: () => {
+          showQuote(i);
+          $("#stage").scrollIntoView({ block: "center" });
+        },
+      },
+        el("span", { class: "qn", text: pad(i + 1) }),
+        el("span", {},
+          el("span", { class: "qt", text: q.text }),
+          el("span", { class: "qa", text: q.author || "Unknown" }),
+        ),
       ),
+      removeButton("quotes", q),
     );
   }
 
-  const cardFor = { artists: artistCard, winemakers: winemakerCard, quotes: quoteCard };
+  // ── Lists ─────────────────────────────────────────────────
+  const itemFor = { artists: artistRow, winemakers: bottleCard, quotes: quoteItem };
   const emptyText = {
     artists: "No artists yet — add someone whose work stops you in your tracks.",
-    winemakers: "The cellar is empty. Add a winemaker you love.",
-    quotes: "No quotes yet. Add a line you keep coming back to.",
+    winemakers: "The cellar is empty.",
+    quotes: "No words yet.",
   };
 
   function renderList(kind) {
     const host = $(`[data-list="${kind}"]`);
     const items = kind === "quotes" ? allOf(kind) : filtered(kind);
     host.replaceChildren(
-      ...(items.length ? items.map(cardFor[kind]) : [el("p", { class: "empty", text: emptyText[kind] })]),
+      ...(items.length ? items.map(itemFor[kind]) : [el("p", { class: "empty", text: emptyText[kind] })]),
     );
     observeReveals(host);
   }
 
-  // Featured quote in the hero
-  let quoteIndex = -1;
-  function nextQuote() {
-    const qs = allOf("quotes");
-    const fig = $("#featured-quote");
-    if (!qs.length) return (fig.hidden = true);
-    fig.hidden = false;
-    let i = Math.floor(Math.random() * qs.length);
-    if (qs.length > 1 && i === quoteIndex) i = (i + 1) % qs.length;
-    quoteIndex = i;
-    const q = qs[i];
-    fig.classList.add("fading");
-    setTimeout(() => {
-      $("blockquote", fig).textContent = q.text;
-      $("figcaption", fig).textContent = [q.author || "unknown", q.source].filter(Boolean).join(", ");
-      fig.classList.remove("fading");
-    }, fig.dataset.ready ? 300 : 0);
-    fig.dataset.ready = "1";
-  }
-
-  function renderHeader() {
-    const owner = SITE.owner || "";
-    $("#hero-owner").textContent = owner ? `The inspirations of ${owner}` : "Inspirations";
-    const title = SITE.title || "Cabinet of Inspiration";
-    const words = title.split(" ");
-    const last = words.pop();
-    $("#hero-title").replaceChildren(words.join(" ") + (words.length ? " " : ""), el("em", { text: last }));
-    $("#hero-intro").textContent = SITE.intro || "";
-    $("#brand").textContent = owner ? owner[0] + "." : "✦";
-    $("#footer-owner").textContent = owner || "me";
-    document.title = owner ? `${title} — ${owner}` : title;
-  }
-
-  function renderCount() {
-    const n = (k) => allOf(k).length;
-    $("#footer-count").textContent =
-      `${n("artists")} artists · ${n("winemakers")} winemakers · ${n("quotes")} quotes`;
-  }
-
   function renderAll() {
-    renderHeader();
-    renderChips("artists");
-    renderChips("winemakers");
+    renderCover();
+    renderCounts();
+    renderTicker();
+    renderFilters("artists");
+    renderFilters("winemakers");
     LISTS.forEach(renderList);
-    renderCount();
+    showQuote(current, false);
+    fitAll();
   }
 
   // ── Scroll reveal ─────────────────────────────────────────
   const io = "IntersectionObserver" in window
     ? new IntersectionObserver((entries) => {
         for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-      }, { rootMargin: "0px 0px -8% 0px" })
+      }, { rootMargin: "0px 0px -6% 0px" })
     : null;
   function observeReveals(root) {
     $$(".reveal", root).forEach((n, i) => {
-      n.style.transitionDelay = `${Math.min(i, 6) * 60}ms`;
+      n.style.transitionDelay = `${Math.min(i, 8) * 45}ms`;
       io ? io.observe(n) : n.classList.add("in");
     });
   }
@@ -378,7 +451,7 @@
       ["text", "Quote", true, true], ["author", "Who said it"], ["source", "Source (book, film, song…)"],
     ],
   };
-  const TITLES = { artists: "Add an artist", winemakers: "Add a winemaker", quotes: "Add a quote" };
+  const TITLES = { artists: "New artist", winemakers: "New winemaker", quotes: "New quote" };
 
   let addingKind = null;
   const addDialog = $("#add-dialog");
@@ -412,8 +485,8 @@
     }
     local[addingKind].push(item);
     saveLocal(local);
+    if (addingKind === "quotes") current = allOf("quotes").length - 1;
     renderAll();
-    if (addingKind === "quotes") nextQuote();
     document.getElementById(addingKind).scrollIntoView();
   });
 
@@ -434,37 +507,50 @@
   $("#copy-export").addEventListener("click", (e) => {
     e.preventDefault();
     navigator.clipboard?.writeText($("#export-text").value);
-    e.target.textContent = "copied ✓";
-    setTimeout(() => (e.target.textContent = "copy"), 1500);
+    e.target.textContent = "Copied ✓";
+    setTimeout(() => (e.target.textContent = "Copy"), 1500);
   });
   $("#clear-local").addEventListener("click", (e) => {
     if (!confirm("Remove every entry saved only in this browser?")) return e.preventDefault();
     local = { artists: [], winemakers: [], quotes: [] };
     saveLocal(local);
+    current = 0;
     renderAll();
-    nextQuote();
   });
 
   // ── Theme ─────────────────────────────────────────────────
+  const isDark = () => getComputedStyle(document.documentElement).colorScheme.includes("dark");
   function applyTheme(t) {
     if (t) document.documentElement.dataset.theme = t;
     else delete document.documentElement.dataset.theme;
+    $("#theme-toggle").textContent = isDark() ? "Light" : "Dark";
   }
-  try { applyTheme(localStorage.getItem(THEME_KEY)); } catch {}
+  try { applyTheme(localStorage.getItem(THEME_KEY)); } catch { applyTheme(null); }
+  function repaint() { drawCover(); renderAll(); }
   $("#theme-toggle").addEventListener("click", () => {
-    const dark = getComputedStyle(document.documentElement).colorScheme.includes("dark");
-    const next = dark ? "light" : "dark";
+    const next = isDark() ? "light" : "dark";
     applyTheme(next);
     try { localStorage.setItem(THEME_KEY, next); } catch {}
-    drawHero();
-    renderAll(); // artwork picks up the new palette
+    repaint(); // artwork picks up the new palette
   });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { drawHero(); renderAll(); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
+    applyTheme(document.documentElement.dataset.theme);
+    repaint();
+  });
 
   // ── Boot ──────────────────────────────────────────────────
-  $("#hero-art").addEventListener("click", () => { heroSeed = hash(String(Math.random())); drawHero(); });
-  $("#another-quote").addEventListener("click", nextQuote);
+  $("#cover-art").addEventListener("click", () => {
+    coverSeed = Math.random().toString(36);
+    studyNo += 1;
+    drawCover();
+  });
+  $("#prev-quote").addEventListener("click", () => showQuote(current - 1));
+  $("#next-quote").addEventListener("click", () => showQuote(current + 1));
+
+  let resizeT;
+  addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(fitAll, 80); });
+
   renderAll();
-  drawHero();
-  nextQuote();
+  drawCover();
+  document.fonts?.ready.then(fitAll);
 })();

@@ -7,82 +7,109 @@
   <meta name="description" content="Artists, winemakers and words that inspire me." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
-
-  <header class="masthead">
-    <nav class="nav" aria-label="Sections">
-      <a class="brand" href="#top" id="brand">R.</a>
-      <ul>
-        <li><a href="#artists">Artists</a></li>
-        <li><a href="#winemakers">Winemakers</a></li>
-        <li><a href="#quotes">Quotes</a></li>
-      </ul>
-      <button class="icon-btn" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle light / dark">◐</button>
+  <header class="bar">
+    <a class="bar-brand" href="#top" id="brand"></a>
+    <nav aria-label="Sections">
+      <a href="#artists"><span>01</span> Artists</a>
+      <a href="#winemakers"><span>02</span> Winemakers</a>
+      <a href="#quotes"><span>03</span> Words</a>
     </nav>
+    <button class="bar-btn" id="theme-toggle">Dark</button>
   </header>
 
+  <div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
   <main id="top">
-    <section class="hero">
-      <p class="eyebrow" id="hero-owner"></p>
-      <h1 id="hero-title"></h1>
-      <p class="lede" id="hero-intro"></p>
-      <div id="hero-art" aria-hidden="true" title="click to redraw"></div>
-      <figure class="featured-quote" id="featured-quote">
-        <blockquote></blockquote>
-        <figcaption></figcaption>
-        <button class="text-btn" id="another-quote">another →</button>
-      </figure>
+    <section class="cover wrap">
+      <div class="cover-meta">
+        <span id="issue"></span>
+        <span id="kept-by"></span>
+        <span id="counts"></span>
+      </div>
+      <h1 class="wordmark" id="wordmark"></h1>
+      <div class="cover-grid">
+        <p class="cover-intro" id="intro"></p>
+        <ol class="contents">
+          <li><a href="#artists"><span class="n">01</span><span class="t">Artists I follow</span><span class="c" data-count="artists"></span></a></li>
+          <li><a href="#winemakers"><span class="n">02</span><span class="t">Winemakers</span><span class="c" data-count="winemakers"></span></a></li>
+          <li><a href="#quotes"><span class="n">03</span><span class="t">Words I keep</span><span class="c" data-count="quotes"></span></a></li>
+        </ol>
+        <figure class="cover-art">
+          <div id="cover-art" title="Click to redraw"></div>
+          <figcaption>Fig. 0 — <span id="cover-caption">Untitled (study)</span>, generative, <span id="cover-year"></span>. Click to redraw.</figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section class="section" id="artists" aria-labelledby="artists-h">
+    <section class="section wrap" id="artists" aria-labelledby="artists-h">
       <header class="section-head">
-        <span class="section-num">I</span>
-        <h2 id="artists-h">Artists I follow</h2>
-        <button class="add-btn" data-add="artists">+ add artist</button>
+        <span class="section-no">01</span>
+        <h2 id="artists-h">Artists<sup data-count="artists"></sup></h2>
+        <button class="add-btn" data-add="artists">+ Add artist</button>
       </header>
-      <div class="chips" data-chips="artists"></div>
-      <div class="grid" data-list="artists"></div>
+      <div class="filters" data-chips="artists"></div>
+      <div class="index-head" aria-hidden="true">
+        <span>No.</span><span>Name</span><span>Medium</span><span>Years</span><span>Filed under</span>
+      </div>
+      <ol class="index" data-list="artists"></ol>
     </section>
 
-    <section class="section" id="winemakers" aria-labelledby="winemakers-h">
+    <section class="section wrap" id="winemakers" aria-labelledby="winemakers-h">
       <header class="section-head">
-        <span class="section-num">II</span>
-        <h2 id="winemakers-h">Winemakers</h2>
-        <button class="add-btn" data-add="winemakers">+ add winemaker</button>
+        <span class="section-no">02</span>
+        <h2 id="winemakers-h">Winemakers<sup data-count="winemakers"></sup></h2>
+        <button class="add-btn" data-add="winemakers">+ Add winemaker</button>
       </header>
-      <div class="chips" data-chips="winemakers"></div>
+      <div class="filters" data-chips="winemakers"></div>
       <div class="cellar" data-list="winemakers"></div>
     </section>
 
-    <section class="section" id="quotes" aria-labelledby="quotes-h">
-      <header class="section-head">
-        <span class="section-num">III</span>
-        <h2 id="quotes-h">Words I keep</h2>
-        <button class="add-btn" data-add="quotes">+ add quote</button>
-      </header>
-      <div class="quote-wall" data-list="quotes"></div>
+    <section class="section words" id="quotes" aria-labelledby="quotes-h">
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-no">03</span>
+          <h2 id="quotes-h">Words<sup data-count="quotes"></sup></h2>
+          <button class="add-btn" data-add="quotes">+ Add quote</button>
+        </header>
+        <figure class="stage" id="stage">
+          <blockquote id="stage-text"></blockquote>
+          <figcaption>
+            <span id="stage-author"></span>
+            <span class="stage-nav">
+              <button class="bar-btn" id="prev-quote" aria-label="Previous quote">←</button>
+              <span id="stage-count"></span>
+              <button class="bar-btn" id="next-quote" aria-label="Next quote">→</button>
+            </span>
+          </figcaption>
+        </figure>
+        <ol class="quote-list" data-list="quotes"></ol>
+      </div>
     </section>
   </main>
 
-  <footer class="footer">
-    <p>Kept by <span id="footer-owner"></span> · <span id="footer-count"></span></p>
-    <p class="footer-tools">
-      <button class="text-btn" id="export-btn">export my additions</button>
-    </p>
+  <footer class="colophon wrap">
+    <div class="colophon-mark" id="colophon-mark"></div>
+    <div class="colophon-cols">
+      <p><b>Colophon</b><br />Set in Archivo and Instrument Serif. Artwork generated from each name. No two alike.</p>
+      <p><b>Kept by</b><br /><span id="footer-owner"></span></p>
+      <p><b>Drafts</b><br /><button class="text-btn" id="export-btn">Export my additions →</button></p>
+    </div>
   </footer>
+
+  <div class="peek" id="peek" aria-hidden="true"></div>
 
   <dialog id="add-dialog">
     <form method="dialog" id="add-form">
       <h3 id="add-title">Add</h3>
       <div id="add-fields"></div>
-      <p class="hint">Saved in this browser. Use “export my additions” to make it permanent in <code>data.js</code>.</p>
+      <p class="hint">Saved in this browser as a draft. Use “Export my additions” to make it permanent in <code>data.js</code>.</p>
       <menu>
-        <button value="cancel" class="text-btn" formnovalidate>cancel</button>
-        <button value="save" class="solid-btn" id="add-save">save</button>
+        <button value="cancel" class="text-btn" formnovalidate>Cancel</button>
+        <button value="save" class="solid-btn" id="add-save">Save</button>
       </menu>
     </form>
   </dialog>
@@ -93,9 +120,9 @@
       <p class="hint">Paste each block into the matching list in <code>data.js</code>, then commit. After that you can clear the browser copies.</p>
       <textarea id="export-text" readonly rows="14"></textarea>
       <menu>
-        <button value="clear" class="text-btn" id="clear-local">clear browser copies</button>
-        <button value="copy" class="text-btn" id="copy-export">copy</button>
-        <button value="close" class="solid-btn">done</button>
+        <button value="clear" class="text-btn" id="clear-local">Clear browser copies</button>
+        <button value="copy" class="text-btn" id="copy-export">Copy</button>
+        <button value="close" class="solid-btn">Done</button>
       </menu>
     </form>
   </dialog>
