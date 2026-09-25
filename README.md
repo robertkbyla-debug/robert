@@ -11,20 +11,33 @@ context and your notes, and keeps a side panel updated with:
 
 Everything is saved to `sessions/` as Markdown and JSON when you debrief or stop the app.
 
-Coaching is powered by Claude (`claude-opus-5` by default) through the Anthropic API.
+Coaching is powered by Claude. It can run on your **Claude Pro/Max subscription** through
+Claude Code (no API credits), or on the Anthropic API.
 
 ## Setup
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .                 # add ".[audio]" to transcribe audio locally
-export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+Then pick how to reach Claude:
+
+**On your Claude Pro/Max plan (no API credits)**: install
+[Claude Code](https://claude.com/claude-code), run `claude` once and log in with your Claude
+account, then add `--backend claude-code` to every command (or set
+`export ZOOM_COACH_BACKEND=claude-code` once). Each update counts toward your plan's usage
+limits, the same way a Claude Code message does. An hour of talking produces roughly
+60–100 updates; raise `--interval` (e.g. `--interval 45`) to use less. The app ignores
+any `ANTHROPIC_API_KEY` in your environment in this mode, so it never bills API credits.
+
+**On API credits**: `export ANTHROPIC_API_KEY=sk-ant-...` and leave `--backend` at its
+default (`api`).
 
 ## Try it with the demo call
 
 ```bash
-zoom-coach --source replay --file examples/sample_call.txt \
+zoom-coach --backend claude-code --source replay --file examples/sample_call.txt \
   --context context/ --me Robert \
   --goal "Get agreement to a one-branch pilot with a start date" \
   --goal "Get a meeting with Sam Patel (CFO) booked" \
@@ -110,12 +123,13 @@ Zoom-native integration later.
 | `--context PATH` | none | Project context file or folder (repeatable). |
 | `--me NAME` | none | Your name as it appears in the transcript. |
 | `--title TEXT` | `Live call` | Call name, used for the saved notes. |
+| `--backend` | `api` | `claude-code` uses your Claude Pro/Max plan through the `claude` CLI; `api` uses API credits. Or set `ZOOM_COACH_BACKEND`. |
 | `--effort` | `low` | Effort for live tips. `medium` gives deeper tips but takes longer. |
 | `--debrief-effort` | `high` | Effort for the post-call debrief. |
 | `--interval SEC` | `20` | Minimum seconds between automatic updates. |
 | `--min-new-chars N` | `200` | How much new conversation triggers an update. |
-| `--model ID` | `claude-opus-5` | Claude model (or set `ZOOM_COACH_MODEL`). |
-| `--no-fallbacks` | off | Disables server-side model fallback when a request is declined. |
+| `--model ID` | see note | API default `claude-opus-5`. With `claude-code`, your account's default model, or an alias such as `opus` or `sonnet`. Or set `ZOOM_COACH_MODEL`. |
+| `--no-fallbacks` | off | API backend only: disables server-side model fallback when a request is declined. |
 | `--port` / `--host` | `8765` / `127.0.0.1` | Where the panel is served. |
 | `--sessions-dir` | `sessions` | Where call notes are saved. |
 
@@ -125,8 +139,12 @@ updates, e.g. during small talk. Click a tip to cross it off.
 ## Cost and privacy
 
 - Every update sends the transcript so far, your goals, your notes and your project context
-  to the Anthropic API. The project context is prompt-cached, so repeat updates cost much less.
-  With the defaults you get an update roughly every 20–60 seconds while people are talking.
+  to Claude. With the defaults you get an update roughly every 20–60 seconds while people
+  are talking.
+- With `--backend claude-code`, updates use your Pro/Max plan's usage limits and cost nothing
+  extra. Each update takes about 15–25 seconds because the `claude` CLI starts fresh each time.
+- With the API backend, the project context is prompt-cached so repeat updates cost much less;
+  an hour-long call costs very roughly $5–8 on Opus 5 or $2–3 with `--model claude-sonnet-5`.
 - Local audio transcription never leaves your machine; only the transcribed text is sent.
 - The server only listens on `127.0.0.1` unless you change `--host`. It has no login, so
   don't expose it to a network.
@@ -140,6 +158,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Code layout: `zoom_coach/coach.py` (prompts and Claude calls), `server.py` (session, coaching
+Code layout: `zoom_coach/coach.py` (prompts and Claude calls), `claude_code.py` (the
+Claude Code / subscription backend), `server.py` (session, coaching
 loop, API, event stream), `transcript.py` (storage and format parsing), `sources/` (audio,
 file, replay), `static/index.html` (the panel).

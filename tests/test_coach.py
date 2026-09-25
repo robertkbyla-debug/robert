@@ -56,3 +56,35 @@ def test_no_fallbacks_and_refusal():
     else:
         raise AssertionError("refusal should raise")
     assert "extra_body" not in messages.kwargs
+
+
+class FakeRunner:
+    def __init__(self, output):
+        self.output = output
+        self.kwargs = None
+
+    async def run(self, **kwargs):
+        self.kwargs = kwargs
+        return self.output
+
+
+def test_claude_code_backend_uses_runner():
+    runner = FakeRunner(update().model_dump())
+    coach = Coach("PROJECT FACTS", backend="claude-code", runner=runner, effort="medium")
+    result = run_analyze(coach)
+
+    assert result == update() and coach.client is None
+    assert "PROJECT FACTS" in runner.kwargs["system"] and COACH_INSTRUCTIONS in runner.kwargs["system"]
+    assert "Dana: hi" in runner.kwargs["prompt"]
+    assert runner.kwargs["schema"] == CoachingUpdate.model_json_schema()
+    assert runner.kwargs["effort"] == "medium"
+
+
+def test_claude_code_backend_bad_output_raises_coach_error():
+    coach = Coach("", backend="claude-code", runner=FakeRunner({"read": "only this"}))
+    try:
+        run_analyze(coach)
+    except CoachError:
+        pass
+    else:
+        raise AssertionError("invalid output should raise CoachError")

@@ -45,7 +45,18 @@ def build_parser() -> argparse.ArgumentParser:
     call.add_argument("--me", help="Your name as it appears in the transcript")
 
     coach = p.add_argument_group("coaching")
-    coach.add_argument("--model", default=os.environ.get("ZOOM_COACH_MODEL", DEFAULT_MODEL))
+    coach.add_argument(
+        "--backend",
+        choices=["api", "claude-code"],
+        default=os.environ.get("ZOOM_COACH_BACKEND", "api"),
+        help="api: Anthropic API (uses API credits); claude-code: the `claude` CLI on your Claude Pro/Max plan",
+    )
+    coach.add_argument(
+        "--model",
+        default=os.environ.get("ZOOM_COACH_MODEL"),
+        help=f"Claude model (api default {DEFAULT_MODEL}; claude-code default: your account's default, "
+        "or an alias like opus / sonnet)",
+    )
     coach.add_argument("--effort", choices=EFFORTS, default="low", help="Live-tip effort; low keeps tips fast (default low)")
     coach.add_argument("--debrief-effort", choices=EFFORTS, default="high")
     coach.add_argument("--interval", type=float, default=20.0, help="Minimum seconds between automatic updates (default 20)")
@@ -97,14 +108,20 @@ def main(argv: list[str] | None = None) -> None:
 
     import uvicorn
 
-    coach = Coach(
-        load_context(args.context),
-        me=args.me,
-        model=args.model,
-        effort=args.effort,
-        debrief_effort=args.debrief_effort,
-        use_fallbacks=not args.no_fallbacks,
-    )
+    from .claude_code import ClaudeCodeError
+
+    try:
+        coach = Coach(
+            load_context(args.context),
+            me=args.me,
+            backend=args.backend,
+            model=args.model,
+            effort=args.effort,
+            debrief_effort=args.debrief_effort,
+            use_fallbacks=not args.no_fallbacks,
+        )
+    except ClaudeCodeError as exc:
+        sys.exit(str(exc))
     settings = Settings(
         title=args.title,
         goals=args.goal,

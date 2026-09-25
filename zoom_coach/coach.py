@@ -7,7 +7,9 @@ import logging
 from typing import Literal
 
 import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+from .claude_code import ClaudeCodeError, ClaudeCodeRunner
 
 log = logging.getLogger(__name__)
 
@@ -71,8 +73,9 @@ context, or a stated goal. Use names, numbers and details from the context when 
 goals not yet touched, moments to ask for a commitment, and facts worth verifying.
 - Suggest questions that uncover needs, constraints, decision makers, timelines and budget \
 when those serve the goals; suggest steering back when the call drifts.
-- `say_next` is the single most valuable next line. Make it natural and speakable, not a \
-script-like pitch. If the best move is to let the other person keep talking, say so.
+- `say_next` is the single most valuable next line: one or two short sentences that sound \
+natural said aloud, not a pitch. Make one move at a time; save the rest for the tips. If the \
+best move is to let the other person keep talking, say so.
 - Give 2 to 5 tips, highest value first. Do not repeat advice from the previous update unless \
 it is still the top priority and has not been acted on; if the user already did it, move on.
 - Treat the user's live notes as the most recent and most authoritative signal of their intent.
@@ -101,16 +104,25 @@ class Coach:
         context: str,
         *,
         me: str | None = None,
-        model: str = DEFAULT_MODEL,
+        backend: str = "api",
+        model: str | None = None,
         effort: str = "low",
         debrief_effort: str = "high",
         use_fallbacks: bool = True,
         client: anthropic.AsyncAnthropic | None = None,
+        runner: ClaudeCodeRunner | None = None,
     ) -> None:
-        self.client = client or anthropic.AsyncAnthropic()
+        self.backend = backend
+        if backend == "claude-code":
+            # Model left unset means whatever model your Claude Code account defaults to.
+            self.runner = runner or ClaudeCodeRunner(model=model)
+            self.client = None
+        else:
+            self.client = client or anthropic.AsyncAnthropic()
+            self.runner = None
         self.context = context
         self.me = me
-        self.model = model
+        self.model = model or DEFAULT_MODEL
         self.effort = effort
         self.debrief_effort = debrief_effort
         self.use_fallbacks = use_fallbacks
@@ -152,6 +164,16 @@ class Coach:
         return "\n\n".join(parts)
 
     async def _parse(self, *, instructions: str, user: str, output: type[BaseModel], effort: str):
+        if self.runner is not None:
+            system = "\n\n".join(block["text"] for block in self._system(instructions))
+            try:
+                data = await self.runner.run(
+                    system=system, prompt=user, schema=output.model_json_schema(), effort=effort
+                )
+                return output.model_validate(data)
+            except (ClaudeCodeError, ValidationError) as exc:
+                raise CoachError(str(exc)) from exc
+
         extra: dict = {}
         if self.use_fallbacks:
             extra = {"extra_headers": {"anthropic-beta": FALLBACK_BETA}, "extra_body": {"fallbacks": "default"}}
