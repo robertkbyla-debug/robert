@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zoom Coach</title>
+<style>
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e2dc;
+    --accent: #2f5bea; --accent-soft: #e8eefc; --on-accent: #ffffff;
+    --good: #1f8a4c; --good-soft: #e3f4ea; --warn: #b26b00; --warn-soft: #fbf0dc;
+    --bad: #c23b32; --bad-soft: #fbe6e4; --idle: #8c8c86;
+    --radius: 10px;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --ink: #ececea; --muted: #9b9b95; --line: #33332f;
+      --accent: #7c9cff; --accent-soft: #232b45; --on-accent: #10152a;
+      --good: #5ccf8b; --good-soft: #1b3326; --warn: #f0b155; --warn-soft: #3a2d15;
+      --bad: #ff8078; --bad-soft: #3d1f1c; --idle: #77776f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font); }
+  main { max-width: 760px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 12px; }
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--idle); }
+  .dot.listening { background: var(--good); }
+  .dot.analyzing, .dot.debriefing { background: var(--accent); animation: pulse 1s infinite alternate; }
+  .dot.error { background: var(--bad); }
+  @keyframes pulse { to { opacity: .35; } }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+           border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+  h2 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .say { border-color: var(--accent); background: var(--accent-soft); }
+  .say p { font-size: 18px; line-height: 1.35; margin: 0; font-weight: 500; }
+  .read { color: var(--muted); margin: 8px 0 0; }
+  .age { font-size: 11px; color: var(--muted); float: right; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .empty { color: var(--muted); font-style: italic; margin: 0; }
+  .error-box { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); display: none; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  .tips li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .tips li:first-child { border-top: 0; padding-top: 0; }
+  .tips li.done { opacity: .4; text-decoration: line-through; }
+  .kind { font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 1px 7px; border-radius: 99px;
+          background: var(--accent-soft); color: var(--accent); align-self: start; margin-top: 2px; }
+  .kind.warn { background: var(--bad-soft); color: var(--bad); }
+  .kind.close { background: var(--good-soft); color: var(--good); }
+  .kind.listen { background: var(--warn-soft); color: var(--warn); }
+  .tip-text { font-weight: 500; }
+  .tip-text.high::before { content: "● "; color: var(--bad); }
+  .why { grid-column: 2; color: var(--muted); font-size: 13px; }
+  .goals li { display: flex; gap: 8px; padding: 5px 0; align-items: baseline; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; white-space: nowrap; background: var(--line); color: var(--muted); }
+  .badge.achieved { background: var(--good-soft); color: var(--good); }
+  .badge.in_progress { background: var(--accent-soft); color: var(--accent); }
+  .badge.at_risk { background: var(--bad-soft); color: var(--bad); }
+  .goal-evidence { color: var(--muted); font-size: 13px; }
+  @media (max-width: 560px) { h1 { flex-basis: 100%; white-space: normal; } }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+  .bullets li { padding: 3px 0 3px 14px; position: relative; }
+  .bullets li::before { content: "–"; position: absolute; left: 0; color: var(--muted); }
+  form { display: flex; gap: 8px; }
+  input, textarea { font: inherit; flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px;
+                    border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  textarea { width: 100%; min-height: 90px; resize: vertical; }
+  .notes li { color: var(--muted); padding: 2px 0; }
+  .transcript { max-height: 260px; overflow-y: auto; font-size: 13px; }
+  .transcript div { padding: 2px 0; }
+  .transcript b { font-weight: 600; }
+  .transcript time { color: var(--muted); font-size: 11px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 8px; }
+  details .row { display: flex; gap: 8px; margin-top: 6px; }
+  pre { white-space: pre-wrap; font: inherit; background: var(--bg); padding: 10px; border-radius: 8px; margin: 6px 0 0; }
+  .debrief h3 { font-size: 14px; margin: 12px 0 4px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Zoom Coach</h1>
+    <span class="status"><span class="dot" id="dot"></span><span id="status">connecting</span> · <span id="clock">00:00</span></span>
+    <button id="pause">Pause</button>
+    <button id="analyze">Tip now</button>
+    <button id="debrief-btn" class="primary">End &amp; debrief</button>
+  </header>
+
+  <section class="error-box" id="error"></section>
+
+  <section class="say">
+    <h2>Say next <span class="age" id="age"></span></h2>
+    <p id="say" class="empty">Waiting for the conversation to start…</p>
+    <p class="read" id="read"></p>
+  </section>
+
+  <section>
+    <h2>Tips</h2>
+    <ul class="tips" id="tips"><li class="empty">Tips appear here once there is something to go on.</li></ul>
+  </section>
+
+  <section>
+    <h2>Goals</h2>
+    <ul class="goals" id="goals"></ul>
+    <details>
+      <summary>Edit title and goals</summary>
+      <div class="row"><input id="title-input" placeholder="Call title"></div>
+      <textarea id="goals-input" placeholder="One goal per line, e.g. Get agreement to a 30-day pilot"></textarea>
+      <div class="row"><button id="save-goals">Save goals</button></div>
+    </details>
+  </section>
+
+  <div class="grid2">
+    <section><h2>Risks &amp; objections</h2><ul class="bullets" id="risks"></ul></section>
+    <section><h2>Open threads</h2><ul class="bullets" id="open"></ul></section>
+  </div>
+
+  <section>
+    <h2>Note to coach</h2>
+    <form id="note-form">
+      <input id="note" placeholder="e.g. They seem worried about security; I want a follow-up with their CTO" autocomplete="off">
+      <button>Add</button>
+    </form>
+    <ul class="notes" id="notes"></ul>
+  </section>
+
+  <section>
+    <h2>Transcript</h2>
+    <div class="transcript" id="transcript"><p class="empty">No transcript yet.</p></div>
+    <details>
+      <summary>Paste or type transcript</summary>
+      <textarea id="paste" placeholder="Paste lines (Speaker: text, Zoom saved captions, or VTT)"></textarea>
+      <div class="row"><button id="paste-btn">Add to transcript</button></div>
+    </details>
+  </section>
+
+  <section class="debrief" id="debrief" hidden></section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { startedAt: Date.now() / 1000, updateAt: null, paused: false, segments: 0 };
+
+function el(tag, props = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "className") node.className = v; else if (k === "text") node.textContent = v; else node.setAttribute(k, v);
+  }
+  for (const c of [].concat(children)) if (c) node.append(c);
+  return node;
+}
+
+function fillList(target, items, render, emptyText) {
+  target.replaceChildren();
+  if (!items || !items.length) { target.append(el("li", { className: "empty", text: emptyText })); return; }
+  items.forEach((item) => target.append(render(item)));
+}
+
+function mmss(seconds) {
+  seconds = Math.max(0, Math.floor(seconds));
+  return String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
+}
+
+const STATUS_LABELS = { waiting: "waiting for transcript", listening: "listening", analyzing: "thinking…",
+                        debriefing: "writing debrief…", error: "error" };
+
+function setStatus({ status, error, paused }) {
+  state.paused = !!paused;
+  $("dot").className = "dot " + status;
+  $("status").textContent = (state.paused ? "paused · " : "") + (STATUS_LABELS[status] || status);
+  $("pause").textContent = state.paused ? "Resume" : "Pause";
+  $("error").style.display = error ? "block" : "none";
+  $("error").textContent = error || "";
+}
+
+function renderUpdate(update, updateAt) {
+  if (!update) return;
+  state.updateAt = updateAt;
+  $("say").textContent = update.say_next;
+  $("say").className = "";
+  $("read").textContent = update.read;
+  const order = { high: 0, medium: 1, low: 2 };
+  const tips = [...update.tips].sort((a, b) => order[a.priority] - order[b.priority]);
+  fillList($("tips"), tips, (t) => {
+    const li = el("li", {}, [
+      el("span", { className: "kind " + t.kind, text: t.kind }),
+      el("span", { className: "tip-text " + t.priority, text: t.text }),
+      el("span", { className: "why", text: t.why }),
+    ]);
+    li.addEventListener("click", () => li.classList.toggle("done"));
+    return li;
+  }, "No tips right now.");
+  renderGoals(update.goals);
+  fillList($("risks"), update.risks, (r) => el("li", { text: r }), "None flagged.");
+  fillList($("open"), update.open_questions, (q) => el("li", { text: q }), "Nothing open.");
+}
+
+function renderGoals(goals) {
+  if (goals && goals.length && typeof goals[0] === "object") {
+    fillList($("goals"), goals, (g) => el("li", {}, [
+      el("span", { className: "badge " + g.status, text: g.status.replace("_", " ") }),
+      el("span", {}, [el("div", { text: g.goal }), el("div", { className: "goal-evidence", text: g.evidence })]),
+    ]), "");
+  } else {
+    fillList($("goals"), goals, (g) => el("li", {}, [el("span", { className: "badge", text: "not started" }), el("span", { text: g })]),
+             "No goals set. Add some below so tips can aim at them.");
+  }
+}
+
+function addSegment(s) {
+  const box = $("transcript");
+  if (!state.segments) box.replaceChildren();
+  state.segments++;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.append(el("div", {}, [
+    el("time", { text: mmss(s.ts - state.startedAt) }),
+    s.speaker ? el("b", { text: s.speaker + ": " }) : null,
+    document.createTextNode(s.text),
+  ]));
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+function renderNotes(notes) {
+  fillList($("notes"), notes, (n) => el("li", { text: "• " + n }), "");
+}
+
+function renderDebrief(d) {
+  const box = $("debrief");
+  box.hidden = false;
+  box.replaceChildren(el("h2", { text: "Debrief" }), el("p", { text: d.summary }),
+    el("p", {}, [el("b", { text: "Outcome: " }), document.createTextNode(d.outcome)]));
+  const section = (title, items, fmt) => {
+    if (!items || !items.length) return;
+    const ul = el("ul", { className: "bullets" });
+    items.forEach((i) => ul.append(el("li", { text: fmt(i) })));
+    box.append(el("h3", { text: title }), ul);
+  };
+  section("Decisions", d.decisions, (x) => x);
+  section("Action items", d.action_items, (a) => `${a.owner}: ${a.item}${a.due ? " (" + a.due + ")" : ""}`);
+  section("Missed opportunities", d.missed_opportunities, (x) => x);
+  const copy = el("button", { text: "Copy email" });
+  copy.addEventListener("click", () => navigator.clipboard.writeText(d.follow_up_email).then(() => copy.textContent = "Copied"));
+  box.append(el("h3", { text: "Follow-up email" }), el("pre", { text: d.follow_up_email }), copy);
+  box.scrollIntoView({ behavior: "smooth" });
+}
+
+function applySnapshot(s) {
+  state.startedAt = s.started_at;
+  $("title").textContent = s.title;
+  document.title = s.title + " · Zoom Coach";
+  $("title-input").value = s.title;
+  $("goals-input").value = s.goals.join("\n");
+  setStatus(s);
+  renderGoals(s.goals);
+  renderNotes(s.notes);
+  state.segments = 0;
+  $("transcript").replaceChildren(el("p", { className: "empty", text: "No transcript yet." }));
+  s.segments.forEach(addSegment);
+  if (s.update) renderUpdate(s.update, s.update_at);
+  if (s.debrief) renderDebrief(s.debrief);
+}
+
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("snapshot", (e) => applySnapshot(JSON.parse(e.data)));
+  es.addEventListener("segment", (e) => addSegment(JSON.parse(e.data)));
+  es.addEventListener("update", (e) => { const d = JSON.parse(e.data); renderUpdate(d.update, d.update_at); });
+  es.addEventListener("status", (e) => setStatus(JSON.parse(e.data)));
+  es.addEventListener("notes", (e) => renderNotes(JSON.parse(e.data)));
+  es.addEventListener("goals", (e) => { const g = JSON.parse(e.data); $("goals-input").value = g.join("\n"); renderGoals(g); });
+  es.addEventListener("debrief", (e) => renderDebrief(JSON.parse(e.data)));
+  es.onerror = () => setStatus({ status: "error", error: "Lost connection to the coach server. Retrying…", paused: state.paused });
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+
+$("analyze").addEventListener("click", () => api("POST", "/api/analyze"));
+$("pause").addEventListener("click", () => api("POST", "/api/pause", { paused: !state.paused }));
+$("note-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("note").value.trim();
+  if (text) api("POST", "/api/notes", { text }).then(() => $("note").value = "");
+});
+$("save-goals").addEventListener("click", () => {
+  const goals = $("goals-input").value.split("\n").map((g) => g.trim()).filter(Boolean);
+  const title = $("title-input").value.trim();
+  api("PUT", "/api/goals", { goals, title }).then((r) => { $("title").textContent = r.title; });
+});
+$("paste-btn").addEventListener("click", () => {
+  const text = $("paste").value.trim();
+  if (text) api("POST", "/api/transcript", { text, raw: true }).then(() => $("paste").value = "");
+});
+$("debrief-btn").addEventListener("click", async () => {
+  $("debrief-btn").disabled = true;
+  try { await api("POST", "/api/debrief"); }
+  catch (err) { setStatus({ status: "error", error: String(err.message || err), paused: state.paused }); }
+  finally { $("debrief-btn").disabled = false; }
+});
+
+setInterval(() => {
+  $("clock").textContent = mmss(Date.now() / 1000 - state.startedAt);
+  if (state.updateAt) $("age").textContent = "updated " + mmss(Date.now() / 1000 - state.updateAt) + " ago";
+}, 1000);
+
+connect();
+</script>
+</body>
+</html>
