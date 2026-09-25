@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cabinet of Inspiration</title>
+  <meta name="description" content="Artists, winemakers and words that inspire me." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <nav class="nav" aria-label="Sections">
+      <a class="brand" href="#top" id="brand">R.</a>
+      <ul>
+        <li><a href="#artists">Artists</a></li>
+        <li><a href="#winemakers">Winemakers</a></li>
+        <li><a href="#quotes">Quotes</a></li>
+      </ul>
+      <button class="icon-btn" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle light / dark">◐</button>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="eyebrow" id="hero-owner"></p>
+      <h1 id="hero-title"></h1>
+      <p class="lede" id="hero-intro"></p>
+      <div id="hero-art" aria-hidden="true" title="click to redraw"></div>
+      <figure class="featured-quote" id="featured-quote">
+        <blockquote></blockquote>
+        <figcaption></figcaption>
+        <button class="text-btn" id="another-quote">another →</button>
+      </figure>
+    </section>
+
+    <section class="section" id="artists" aria-labelledby="artists-h">
+      <header class="section-head">
+        <span class="section-num">I</span>
+        <h2 id="artists-h">Artists I follow</h2>
+        <button class="add-btn" data-add="artists">+ add artist</button>
+      </header>
+      <div class="chips" data-chips="artists"></div>
+      <div class="grid" data-list="artists"></div>
+    </section>
+
+    <section class="section" id="winemakers" aria-labelledby="winemakers-h">
+      <header class="section-head">
+        <span class="section-num">II</span>
+        <h2 id="winemakers-h">Winemakers</h2>
+        <button class="add-btn" data-add="winemakers">+ add winemaker</button>
+      </header>
+      <div class="chips" data-chips="winemakers"></div>
+      <div class="cellar" data-list="winemakers"></div>
+    </section>
+
+    <section class="section" id="quotes" aria-labelledby="quotes-h">
+      <header class="section-head">
+        <span class="section-num">III</span>
+        <h2 id="quotes-h">Words I keep</h2>
+        <button class="add-btn" data-add="quotes">+ add quote</button>
+      </header>
+      <div class="quote-wall" data-list="quotes"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Kept by <span id="footer-owner"></span> · <span id="footer-count"></span></p>
+    <p class="footer-tools">
+      <button class="text-btn" id="export-btn">export my additions</button>
+    </p>
+  </footer>
+
+  <dialog id="add-dialog">
+    <form method="dialog" id="add-form">
+      <h3 id="add-title">Add</h3>
+      <div id="add-fields"></div>
+      <p class="hint">Saved in this browser. Use “export my additions” to make it permanent in <code>data.js</code>.</p>
+      <menu>
+        <button value="cancel" class="text-btn" formnovalidate>cancel</button>
+        <button value="save" class="solid-btn" id="add-save">save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="export-dialog">
+    <form method="dialog">
+      <h3>Your additions</h3>
+      <p class="hint">Paste each block into the matching list in <code>data.js</code>, then commit. After that you can clear the browser copies.</p>
+      <textarea id="export-text" readonly rows="14"></textarea>
+      <menu>
+        <button value="clear" class="text-btn" id="clear-local">clear browser copies</button>
+        <button value="copy" class="text-btn" id="copy-export">copy</button>
+        <button value="close" class="solid-btn">done</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
