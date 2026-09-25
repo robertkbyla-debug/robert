@@ -9,7 +9,9 @@
   // ── Small helpers ─────────────────────────────────────────
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  const note = (s) => (s && !/^\s*todo\s*$/i.test(s) ? s : "");
+  const fold = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -236,11 +238,23 @@
 
   // ── Filters ───────────────────────────────────────────────
   const filters = { artists: null, winemakers: null };
+  const query = { artists: "", winemakers: "" };
+  const moreTags = { artists: false, winemakers: false };
+  const showAll = { artists: false, winemakers: false };
+  const TOP_TAGS = 12;
+  const PAGE = 30;
 
   function renderFilters(kind) {
     const host = $(`[data-chips="${kind}"]`);
-    const tags = [...new Set(allOf(kind).flatMap((x) => x.tags || []))].sort();
+    const counts = {};
+    allOf(kind).forEach((x) => (x.tags || []).forEach((t) => (counts[t] = (counts[t] || 0) + 1)));
+    let tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
     if (!tags.length) return host.replaceChildren();
+    const hidden = tags.length - TOP_TAGS;
+    if (hidden > 0 && !moreTags[kind]) {
+      tags = tags.slice(0, TOP_TAGS);
+      if (filters[kind] && !tags.includes(filters[kind])) tags.push(filters[kind]);
+    }
     const btn = (label, value) =>
       el("button", {
         "aria-pressed": String(filters[kind] === value),
@@ -251,12 +265,20 @@
           renderFilters(kind);
         },
       });
-    host.replaceChildren(btn("All", null), ...tags.map((t) => btn(t, t)));
+    const toggle = hidden > 0 && el("button", {
+      class: "more",
+      text: moreTags[kind] ? "Fewer" : `+${hidden} more`,
+      onclick: () => { moreTags[kind] = !moreTags[kind]; renderFilters(kind); },
+    });
+    host.replaceChildren(btn("All", null), ...tags.map((t) => btn(t, t)), toggle || null);
   }
 
-  const filtered = (kind) => {
+  const filtered = (kind, all) => {
     const f = filters[kind];
-    return allOf(kind).filter((x) => !f || (x.tags || []).includes(f));
+    const q = fold(query[kind]).trim();
+    return all.filter((x) =>
+      (!f || (x.tags || []).includes(f)) &&
+      (!q || fold([x.name, x.medium, x.region, x.country, x.grapes, (x.tags || []).join(" "), note(x.why)].join(" ")).includes(q)));
   };
 
   function removeButton(kind, item) {
@@ -292,8 +314,9 @@
   }
   document.addEventListener("mousemove", (e) => { peekX = e.clientX; peekY = e.clientY; });
 
-  function artistRow(a, i) {
+  function artistRow(a, i, total) {
     const row = el("li", { class: "row reveal" });
+    const width = Math.max(2, String(total).length);
     const main = el("button", {
       class: "row-main",
       "aria-expanded": "false",
@@ -301,11 +324,13 @@
         const open = row.classList.toggle("open");
         main.setAttribute("aria-expanded", String(open));
         peek.classList.remove("show");
+        const frame = $(".art-frame", row);
+        if (open && !frame.firstChild) frame.append(artwork(a.name, a.name)); // drawn on first open
       },
       onmouseenter: (e) => !row.classList.contains("open") && showPeek(a, e),
       onmouseleave: () => peek.classList.remove("show"),
     },
-      el("span", { class: "no", text: pad(i + 1) }),
+      el("span", { class: "no", text: pad(i + 1, width) }),
       el("span", { class: "name" }, a.name, a._local && el("span", { class: "draft", text: "draft" })),
       el("span", { class: "cell medium", text: a.medium || "—" }),
       el("span", { class: "cell years", text: a.era || "—" }),
@@ -315,9 +340,11 @@
     const link = safeUrl(a.link);
     const detail = el("div", { class: "row-detail" },
       el("span", { class: "spacer" }),
-      el("div", { class: "art-frame" }, artwork(a.name, a.name)),
+      el("div", { class: "art-frame" }),
       el("div", {},
-        el("p", { class: "why", text: a.why || "…" }),
+        note(a.why)
+          ? el("p", { class: "why", text: a.why })
+          : el("p", { class: "why pending", text: "Notes to come." }),
         el("div", { class: "cap", text: [a.name, a.medium, a.era].filter(Boolean).join(", ") }),
         el("div", { class: "detail-links" },
           link && el("a", { href: link, target: "_blank", rel: "noopener", text: "See the work ↗" }),
@@ -330,7 +357,7 @@
   }
 
   // ── Winemakers ────────────────────────────────────────────
-  function bottleCard(w, i) {
+  function bottleCard(w, i, total) {
     const place = (w.region || w.country || "—").split(",")[0].trim();
     const spec = el("dl", { class: "spec" });
     const add = (k, v) => v && spec.append(el("dt", { text: k }), el("dd", { text: v }));
@@ -341,13 +368,13 @@
     const link = safeUrl(w.link);
     return el("article", { class: "bottle reveal" },
       el("div", { class: "bottle-top label" },
-        el("span", { text: `No. ${pad(i + 1)}` }),
+        el("span", { text: `No. ${pad(i + 1, Math.max(2, String(total).length))}` }),
         el("span", { text: w.country || "" }),
       ),
       el("div", { class: "place", text: place }),
       el("h3", { text: w.name }),
       spec,
-      w.why && el("p", { class: "why", text: w.why }),
+      note(w.why) && el("p", { class: "why", text: w.why }),
       el("div", { class: "foot" },
         link && el("a", { href: link, target: "_blank", rel: "noopener", text: "Estate ↗" }),
         w._local && el("span", { class: "draft-tag", text: "draft" }),
@@ -405,12 +432,39 @@
 
   function renderList(kind) {
     const host = $(`[data-list="${kind}"]`);
-    const items = kind === "quotes" ? allOf(kind) : filtered(kind);
-    host.replaceChildren(
-      ...(items.length ? items.map(itemFor[kind]) : [el("p", { class: "empty", text: emptyText[kind] })]),
-    );
+    const all = allOf(kind);
+    if (kind === "quotes") {
+      host.replaceChildren(...(all.length ? all.map((q, i) => quoteItem(q, i)) : [el("p", { class: "empty", text: emptyText.quotes })]));
+      return observeReveals(host);
+    }
+    const matches = filtered(kind, all);
+    const narrowed = filters[kind] || query[kind].trim();
+    const shown = narrowed || showAll[kind] ? matches : matches.slice(0, PAGE);
+    const nodes = shown.map((x) => itemFor[kind](x, all.indexOf(x), all.length));
+    if (!matches.length) nodes.push(el("p", { class: "empty", text: narrowed ? "Nothing matches." : emptyText[kind] }));
+    if (shown.length < matches.length || (showAll[kind] && !narrowed && matches.length > PAGE)) {
+      const expanded = showAll[kind];
+      nodes.push(el("li", { class: "show-all" }, el("button", {
+        class: "add-btn",
+        text: expanded ? "Show fewer ↑" : `Show all ${matches.length} →`,
+        onclick: () => {
+          showAll[kind] = !expanded;
+          renderList(kind);
+          if (expanded) document.getElementById(kind).scrollIntoView();
+        },
+      })));
+    }
+    host.replaceChildren(...nodes);
+    const status = $(`[data-status="${kind}"]`);
+    if (status) status.textContent = narrowed ? `${matches.length} of ${all.length}` : "";
     observeReveals(host);
   }
+
+  $$("[data-search]").forEach((input) => {
+    const kind = input.dataset.search;
+    input.placeholder = `Search ${allOf(kind).length} ${kind}…`;
+    input.addEventListener("input", () => { query[kind] = input.value; renderList(kind); });
+  });
 
   function renderAll() {
     renderCover();
