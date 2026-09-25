@@ -16,7 +16,7 @@ The design takes its cues from contemporary art magazines (*Flash Art*, *Spike*,
 
 - **Cover:** a wordmark sized to fill the page width, a table of contents, and a generated artwork. Click the artwork to redraw it.
 - **Artists:** a numbered list. Hover over a name to see its artwork follow your cursor, and click to open the full entry.
-- **Winemakers:** a grid of cards headed by the region in big type. Each card turns red on hover.
+- **Winemakers:** grouped under your own headings (set with `group` in `data.js`), with a search box. Each card is headed by its place in big type and turns red on hover.
 - **Words:** an inverted black section that shows one quote at a time. Your quotes also scroll in a red ticker at the top of the page.
 
 Every artist gets their own artwork, generated from their name in one of four styles: halftone dots, bars, a giant initial, or a sliced disc. To change the accent color, edit `--signal` at the top of `styles.css`.

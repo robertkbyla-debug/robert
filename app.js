@@ -181,9 +181,21 @@
       if (w) span.style.fontSize = `${Math.floor(((100 * width) / w) * 0.995)}px`;
     });
   }
+  // Shrink big headlines until their longest word fits — words never break mid-way.
+  function shrinkToFit(nodes) {
+    nodes.forEach((n) => {
+      n.style.fontSize = "";
+      let size = parseFloat(getComputedStyle(n).fontSize);
+      for (let i = 0; i < 24 && n.scrollWidth > n.clientWidth + 1 && size > 18; i++) {
+        size *= 0.93;
+        n.style.fontSize = `${size}px`;
+      }
+    });
+  }
   function fitAll() {
     fit($("#wordmark"));
     fit($("#colophon-mark"));
+    shrinkToFit($$(".bottle .place, .section h2"));
   }
 
   // ── Cover ─────────────────────────────────────────────────
@@ -358,7 +370,9 @@
 
   // ── Winemakers ────────────────────────────────────────────
   function bottleCard(w, i, total) {
-    const place = (w.region || w.country || "—").split(",")[0].trim();
+    // headline: the first place named, minus asides — "Naoussa (Trilofos), Macedonia" → "Naoussa"
+    const place = (w.region || w.country || "—").replace(/\s*\(.*?\)/g, "").split(",")[0].split(" / ")[0].trim();
+    const size = place.length > 15 ? " longest" : place.length > 9 ? " long" : "";
     const spec = el("dl", { class: "spec" });
     const add = (k, v) => v && spec.append(el("dt", { text: k }), el("dd", { text: v }));
     if (w.estate && w.estate !== w.name) add("Estate", w.estate);
@@ -371,7 +385,7 @@
         el("span", { text: `No. ${pad(i + 1, Math.max(2, String(total).length))}` }),
         el("span", { text: w.country || "" }),
       ),
-      el("div", { class: "place", text: place }),
+      el("div", { class: `place${size}`, text: place }),
       el("h3", { text: w.name }),
       spec,
       note(w.why) && el("p", { class: "why", text: w.why }),
@@ -439,10 +453,20 @@
     }
     const matches = filtered(kind, all);
     const narrowed = filters[kind] || query[kind].trim();
-    const shown = narrowed || showAll[kind] ? matches : matches.slice(0, PAGE);
-    const nodes = shown.map((x) => itemFor[kind](x, all.indexOf(x), all.length));
+    const paged = kind === "artists"; // the cellar is grouped instead
+    const shown = narrowed || showAll[kind] || !paged ? matches : matches.slice(0, PAGE);
+    const nodes = [];
+    let group;
+    shown.forEach((x) => {
+      if (!narrowed && x.group && x.group !== group) {
+        group = x.group;
+        const n = matches.filter((y) => y.group === group).length;
+        nodes.push(el("div", { class: "group-head" }, el("span", { text: group }), el("span", { class: "gc", text: pad(n) })));
+      }
+      nodes.push(itemFor[kind](x, all.indexOf(x), all.length));
+    });
     if (!matches.length) nodes.push(el("p", { class: "empty", text: narrowed ? "Nothing matches." : emptyText[kind] }));
-    if (shown.length < matches.length || (showAll[kind] && !narrowed && matches.length > PAGE)) {
+    if (paged && (shown.length < matches.length || (showAll[kind] && !narrowed && matches.length > PAGE))) {
       const expanded = showAll[kind];
       nodes.push(el("li", { class: "show-all" }, el("button", {
         class: "add-btn",
@@ -457,6 +481,7 @@
     host.replaceChildren(...nodes);
     const status = $(`[data-status="${kind}"]`);
     if (status) status.textContent = narrowed ? `${matches.length} of ${all.length}` : "";
+    shrinkToFit($$(".place", host));
     observeReveals(host);
   }
 
@@ -497,7 +522,7 @@
       ["why", "Why they move you", false, true], ["link", "Link (website, Instagram…)"], ["tags", "Tags, comma separated"],
     ],
     winemakers: [
-      ["name", "Winemaker", true], ["estate", "Estate / domaine"], ["region", "Region"], ["country", "Country"],
+      ["name", "Winemaker", true], ["group", "Group (e.g. Loire, Tasted)"], ["estate", "Estate / domaine"], ["region", "Region"], ["country", "Country"],
       ["grapes", "Grapes"], ["favorite", "Favorite bottle"], ["why", "Why you love their wine", false, true],
       ["link", "Link"], ["tags", "Tags, comma separated"],
     ],

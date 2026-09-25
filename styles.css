@@ -191,7 +191,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .section h2 {
   margin: 0;
   font-size: clamp(56px, 13vw, 200px);
-  overflow-wrap: anywhere;
   font-weight: 900;
   font-stretch: 62%;
   line-height: 0.78;
@@ -347,9 +346,28 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 14px 18px 20px;
   display: flex;
   flex-direction: column;
-  min-height: 460px;
+  min-height: 400px;
   transition: background 0.2s, color 0.2s;
 }
+.group-head {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 26px 18px 10px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: clamp(28px, 3vw, 44px);
+  font-weight: 900;
+  font-stretch: 62%;
+  line-height: 0.9;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.group-head .gc { font-size: 13px; font-weight: 500; font-stretch: 100%; color: var(--signal); letter-spacing: 0.04em; }
 .bottle:hover { background: var(--signal); color: var(--on-signal); }
 .bottle:hover .spec dt, .bottle:hover .bottle-top, .bottle:hover .grey { color: inherit; opacity: 0.75; }
 .bottle-top { display: flex; justify-content: space-between; color: var(--grey); }
@@ -361,8 +379,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   line-height: 0.8;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  overflow-wrap: anywhere;
 }
+.bottle .place.long { font-size: clamp(44px, 4.4vw, 68px); }
+.bottle .place.longest { font-size: clamp(36px, 3.4vw, 52px); line-height: 0.86; }
 .bottle h3 {
   margin: 10px 0 0;
   font-family: var(--serif);
@@ -572,7 +591,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 20px; align-items: 
   .row-detail > .spacer { display: none; }
   .row-detail .art-frame { max-width: 240px; }
   .bottle { min-height: 0; }
-  .cellar { grid-template-columns: 1fr; }
+  .cellar { grid-template-columns: minmax(0, 1fr); }
   .colophon-cols { grid-template-columns: 1fr; }
   .stage { min-height: 0; }
 }
